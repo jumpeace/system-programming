@@ -1,0 +1,6 @@
+# バイナリファイル
+*.exe
+*.exe.stackdump
+
+# Visual Studio Code
+/.vscode/
