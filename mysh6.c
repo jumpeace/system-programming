@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <sys/wait.h>
-#include <stdbool.h>
+#include <sys/types.h>
 
-int child1_pid, child2_pid;
+int child_pid;
 
 int len_str_array(char *str_array[])
 {
@@ -16,28 +16,12 @@ int len_str_array(char *str_array[])
     return i;
 }
 
-void catcher1()
+void catcher()
 {
-    if (child1_pid == 0)
-    {
+    if (child_pid == 0)
         exit(0);
-    }
     else
-    {
-        kill(child1_pid, 0);
-    }
-}
-
-void catcher2()
-{
-    if (child2_pid == 0)
-    {
-        exit(0);
-    }
-    else
-    {
-        kill(child2_pid, 0);
-    }
+        kill(child_pid, 0);
 }
 
 void print_prompt()
@@ -51,30 +35,29 @@ int cd(char *argv[])
 {
     int argc = len_str_array(argv);
     char path[100] = "";
-    printf("argc: %d\n", argc);
     if (argc == 2)
-    {
         strcpy(path, argv[1]);
-    }
     else if (argc == 1)
-    {
         strcpy(path, getenv("HOME"));
-    }
-    printf("path: %s\n", path);
     if (chdir(path) != 0)
-    {
         printf("カレントディレクトリの変更に失敗しました\n");
-    }
 }
 
 int main()
 {
-    char buf[1000];
+    char buf[128];
     char *argv[10], *inputstring;
     int pipe_p;
     int i;
-    int status1, status2;
+    int status;
     int argc = 0;
+    int pipe_fd[2];
+
+    if (pipe(pipe_fd) == -1)
+    {
+        perror("pipe");
+        exit(1);
+    }
 
     print_prompt();
     while (fgets(buf, 1000, stdin) != NULL)
@@ -83,10 +66,6 @@ int main()
 
         inputstring = buf;
         pipe_p = -1;
-
-        // コマンドの入力をクリア
-        for (i = 0; i < argc; i++)
-            argv[i] = (char *)NULL;
 
         for (i = 0;; i++)
         {
@@ -103,112 +82,96 @@ int main()
             }
         }
         argc = i;
-        // for (ap = argv; ap < &argv[10] && (*ap = strsep(&inputstring, " ")) != NULL; ap++) {
-        //     if (**ap == '\0')
-        //         continue;
-        //     if (strcmp(*ap, "|") == 0) {
-        //         *ap = (char*)NULL;
-        //     }
-        // }
 
-        printf("pipe_p: %d\n", pipe_p);
-
-        for (i = 0; i < 2; i++)
+        if (strcmp(argv[0], "k") == 0)
         {
-            printf("argv[%d]: %s\n", i, *(argv + i));
+            kill(atoi(argv[0]), SIGINT);
+            print_prompt();
         }
-
-        signal(SIGINT, catcher1);
-        child1_pid = fork();
-        if (pipe_p != -1)
+        else if (strcmp(argv[0], "s") == 0)
         {
-            signal(SIGINT, catcher2);
-            child2_pid = fork();
+            kill(atoi(argv[0]), SIGSTOP);
+            print_prompt();
         }
-        if (child1_pid == 0)
+        else if (strcmp(argv[0], "c") == 0)
         {
-            if (strcmp(argv[0], "k") == 0)
-            {
-                kill(atoi(argv[0]), SIGINT);
-            }
-            else if (strcmp(argv[0], "s") == 0)
-            {
-                kill(atoi(argv[0]), SIGSTOP);
-            }
-            else if (strcmp(argv[0], "c") == 0)
-            {
-                kill(atoi(argv[0]), SIGCONT);
-                return 0;
-            }
-            else if (strcmp(argv[0], "cd") == 0)
-            {
-                exit(257);
-            }
-            else
-            {
-                execvp(argv[0], argv);
-            }
-            exit(0);
+            kill(atoi(argv[0]), SIGCONT);
+            print_prompt();
         }
-        else if (pipe_p != -1 && child2_pid == 0)
+        else if (strcmp(argv[0], "cd") == 0)
         {
-            waitpid(child1_pid, &status1, 0);
-            if (status1 == 256)
-            {
-                cd(argv);
-            }
-            printf("[status1] <16:%04X> <10:%04d>\n", status1, status1);
-
-            int base_p = pipe_p + 1;
-            if (strcmp(argv[base_p], "k") == 0)
-            {
-                kill(atoi(argv[base_p]), SIGINT);
-            }
-            else if (strcmp(argv[base_p], "s") == 0)
-            {
-                kill(atoi(argv[base_p]), SIGSTOP);
-            }
-            else if (strcmp(argv[base_p], "c") == 0)
-            {
-                kill(atoi(argv[base_p]), SIGCONT);
-                return 0;
-            }
-            else if (strcmp(argv[base_p], "cd") == 0)
-            {
-                exit(257);
-            }
-            else
-            {
-                execvp(argv[base_p], &argv[base_p]);
-            }
-            exit(0);
+            cd(argv);
+            print_prompt();
         }
         else
         {
             // パイプなし
             if (pipe_p == -1)
             {
-                waitpid(child1_pid, &status1, 0);
-                if (status1 == 256)
+                signal(SIGINT, catcher);
+                if ((child_pid = fork()) == -1)
                 {
-                    cd(argv);
+                    perror("Can't fork");
+                    exit(1);
                 }
-                printf("[status1] <16:%04X> <10:%04d>\n", status1, status1);
+
+                if (child_pid == 0)
+                    execvp(argv[0], argv);
+                else
+                {
+                    wait(&status);
+                    printf("status: %04X\n", status);
+                    print_prompt();
+                }
             }
             // パイプあり
             else
             {
-                printf("0303");
-                // FIXME child2_pidを待ってくれない
-                waitpid(child2_pid, &status2, 0);
-                printf("0505");
-                if (status2 == 256)
+                signal(SIGINT, catcher);
+                if ((child_pid = fork()) == -1)
                 {
-                    cd(argv);
+                    perror("Can't fork");
+                    exit(1);
                 }
-                printf("[status2] <16:%04X> <10:%04d>\n", status2, status2);
+
+                if (child_pid == 0)
+                {
+                    close(STDOUT_FILENO);
+                    dup2(pipe_fd[1], STDOUT_FILENO);
+                    execvp(argv[0], argv);
+                }
+                else
+                {
+                    wait(&status);
+                    if (status != 0)
+                    {
+                        printf("status: %04X\n", status);
+                        print_prompt();
+                    }
+                    else
+                    {
+                        signal(SIGINT, catcher);
+                        if ((child_pid = fork()) == -1)
+                        {
+                            perror("Can't fork");
+                            exit(1);
+                        }
+
+                        if (child_pid == 0)
+                        {
+                            close(STDIN_FILENO);
+                            dup2(pipe_fd[0], STDIN_FILENO);
+                            execvp(argv[pipe_p + 1], &argv[pipe_p + 1]);
+                        }
+                        else
+                        {
+                            wait(&status);
+                            printf("status: %04X\n", status);
+                            print_prompt();
+                        }
+                    }
+                }
             }
-            print_prompt();
         }
     }
 }
