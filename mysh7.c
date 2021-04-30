@@ -13,7 +13,9 @@
 
 // 表示色
 #define GREEN "\x1b[32m"
+#define YELLOW "\x1b[33m"
 #define BLUE "\x1b[34m"
+#define MAGENTA "\x1b[35m"
 #define CYAN "\x1b[36m"
 #define DEFAULT_COLOR "\x1b[39m"
 // 表示形式
@@ -247,7 +249,11 @@ void print_prompt()
 {
     char cur_dir[100] = "";
     getcwd(cur_dir, sizeof(cur_dir));
-    printf("prompt %s > ", cur_dir);
+    printf("%s%s%s%sΩσ%s%s ", MAGENTA, BOLD, cur_dir, YELLOW, DEFAULT_COLOR, DEFAULT_TYPE);
+}
+
+void print_status(int status){
+    printf("\n%sSTATUS: %04X%s\n", YELLOW, status, DEFAULT_COLOR);
 }
 
 void catcher()
@@ -340,7 +346,7 @@ int main()
                 else
                 {
                     wait(&status);
-                    printf("status: %04X\n", status);
+                    print_status(status);
                     print_prompt();
                 }
             }
@@ -356,7 +362,6 @@ int main()
 
                 if (child_pid == 0)
                 {
-                    close(STDOUT_FILENO);
                     dup2(pipe_fd[1], STDOUT_FILENO);
                     execvp(argv[0], argv);
                 }
@@ -365,7 +370,7 @@ int main()
                     wait(&status);
                     if (status != 0)
                     {
-                        printf("status: %04X\n", status);
+                        print_status(status);
                         print_prompt();
                     }
                     else
@@ -379,14 +384,13 @@ int main()
 
                         if (child_pid == 0)
                         {
-                            close(STDIN_FILENO);
                             dup2(pipe_fd[0], STDIN_FILENO);
                             execvp(argv[pipe_p + 1], &argv[pipe_p + 1]);
                         }
                         else
                         {
                             wait(&status);
-                            printf("status: %04X\n", status);
+                            print_status(status);
                             print_prompt();
                         }
                     }

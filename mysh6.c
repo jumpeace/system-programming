@@ -136,7 +136,6 @@ int main()
 
                 if (child_pid == 0)
                 {
-                    close(STDOUT_FILENO);
                     dup2(pipe_fd[1], STDOUT_FILENO);
                     execvp(argv[0], argv);
                 }
@@ -159,7 +158,6 @@ int main()
 
                         if (child_pid == 0)
                         {
-                            close(STDIN_FILENO);
                             dup2(pipe_fd[0], STDIN_FILENO);
                             execvp(argv[pipe_p + 1], &argv[pipe_p + 1]);
                         }
