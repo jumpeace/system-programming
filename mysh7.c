@@ -306,17 +306,17 @@ int main()
 
         if (strcmp(argv[0], "k") == 0)
         {
-            kill(atoi(argv[0]), SIGINT);
+            kill(atoi(argv[1]), SIGINT);
             print_prompt();
         }
         else if (strcmp(argv[0], "s") == 0)
         {
-            kill(atoi(argv[0]), SIGSTOP);
+            kill(atoi(argv[1]), SIGSTOP);
             print_prompt();
         }
         else if (strcmp(argv[0], "c") == 0)
         {
-            kill(atoi(argv[0]), SIGCONT);
+            kill(atoi(argv[1]), SIGCONT);
             print_prompt();
         }
         else if (strcmp(argv[0], "cd") == 0)
